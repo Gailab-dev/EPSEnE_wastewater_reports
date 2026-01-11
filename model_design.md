@@ -116,7 +116,7 @@
 | **Test R²** | 0.85~0.90 | 0.80~0.85 |
 | **MAPE** | 3~5% | 5~8% |
 | **정규화** | L1/L2 + subsample | 없음 |
-| **Tree 구조** | Boosting (순차 학습) | Bagging (병렬 학습) |
+   | **Tree 구조** | Boosting (순차 학습) | Bagging (병렬 학습) |
 | **성능 향상** | 이전 Tree 오차 보정 | 독립적 Tree 평균 |
 
 **XGBoost 우수성**:
