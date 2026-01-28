@@ -1,0 +1,1709 @@
+openapi: 3.0.3
+info:
+  title: 수질 예측 모델 API (001-wwtp-pipeline)
+  version: 1.0.0-prototype
+  description: |
+    8단계 하수처리 공정 수질 예측 및 시나리오 시뮬레이션 mock API.
+    각 단계별 NEXT (t→t+1, 1시간 후) 및 HRT (t→t+13, 13시간 후) 이중 예측 모델 제공.
+
+servers:
+  - url: http://localhost:8000
+    description: 프로토타입 API 서버
+
+paths:
+  /api/v1/predict/full-pipeline:
+    post:
+      summary: 8단계 전체 공정 수질 예측 (FR-007)
+      description: |
+        유입수 데이터로 8단계 전체 공정(유입→1차침전→혐기→무산소→호기→2차침전→총인처리→방류)의 수질 예측.
+        각 단계별 NEXT(1시간 후)와 HRT(13시간 후) 이중 예측 결과 반환.
+      tags:
+        - 001-wwtp-pipeline
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FullPipelinePredictionRequest'
+      responses:
+        '200':
+          description: 8단계 전체 예측 성공
+          headers:
+            X-Prototype-Mode:
+              schema:
+                type: string
+                example: "true"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FullPipelinePredictionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/predict/influent:
+    post:
+      summary: 유입수 부하량 예측 (FR-008, Stage 01)
+      description: |
+        유입수 데이터로 BOD/TN/TP 부하량(kg/일) 예측 (NEXT/HRT).
+        부하량 = 유량 × 농도 × 1e-3
+        NEXT: t→t+1 (1시간 후), HRT: t→t+13 (13시간 후) 이중 예측.
+      tags:
+        - 001-wwtp-pipeline
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Stage01PredictionRequest'
+      responses:
+        '200':
+          description: 유입수 부하량 예측 성공
+          headers:
+            X-Prototype-Mode:
+              schema:
+                type: string
+                example: "true"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Stage01PredictionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/v1/predict/primary-clarifier:
+    post:
+      summary: 1차 침전지 예측 (FR-008, Stage 02)
+      description: |
+        일차침전지 유출수 수질 예측 (NEXT/HRT).
+        Input: Shared_current + Control(1차_Q_sludge) + State(1차_SS/BOD/NH/PO4 in/eff)
+      tags:
+        - 001-wwtp-pipeline
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Stage02PredictionRequest'
+      responses:
+        '200':
+          description: 1차 침전지 예측 성공
+          headers:
+            X-Prototype-Mode:
+              schema:
+                type: string
+                example: "true"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Stage02PredictionResponse'
+
+  /api/v1/predict/anaerobic:
+    post:
+      summary: 혐기조 예측 (FR-008, Stage 03)
+      description: |
+        혐기 조건 예측 - 인 방출 및 MLSS (NEXT/HRT).
+        Input: Shared_current + Control(운전_Q_ir, ir_ratio, carbon_kg_d, HRT) + State(혐기_MLSS/DO/S_NO/S_NH/S_PO4/BOD)
+      tags:
+        - 001-wwtp-pipeline
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Stage03PredictionRequest'
+      responses:
+        '200':
+          description: 혐기조 예측 성공
+          headers:
+            X-Prototype-Mode:
+              schema:
+                type: string
+                example: "true"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Stage03PredictionResponse'
+
+  /api/v1/predict/anoxic:
+    post:
+      summary: 무산소조 예측 (FR-008, Stage 04)
+      description: |
+        탈질 반응 예측 (NEXT/HRT).
+        Input: Shared_current + Control(운전_Q_ir, ir_ratio, carbon_kg_d, HRT) + State(무산소_MLSS/DO/S_NO/S_NH/S_PO4/BOD)
+      tags:
+        - 001-wwtp-pipeline
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Stage04PredictionRequest'
+      responses:
+        '200':
+          description: 무산소조 예측 성공
+          headers:
+            X-Prototype-Mode:
+              schema:
+                type: string
+                example: "true"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Stage04PredictionResponse'
+
+  /api/v1/predict/aerobic:
+    post:
+      summary: 호기조 예측 (FR-008, Stage 05)
+      description: |
+        질산화 반응 및 인 흡수 예측 (NEXT/HRT).
+        Input: Shared_current + Control(송풍_Q_air, n_running, DO_setpoint, HRT) + State(호기_MLSS/DO/S_NO/S_NH/S_PO4/BOD)
+      tags:
+        - 001-wwtp-pipeline
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Stage05PredictionRequest'
+      responses:
+        '200':
+          description: 호기조 예측 성공
+          headers:
+            X-Prototype-Mode:
+              schema:
+                type: string
+                example: "true"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Stage05PredictionResponse'
+
+  /api/v1/predict/secondary-clarifier:
+    post:
+      summary: 2차 침전지 예측 (FR-008, Stage 06)
+      description: |
+        이차침전 수질 예측 (NEXT/HRT).
+        Input: Shared_current + Control(운전_Q_ras, ras_ratio, Q_was, SS_was) + State(2차_DO/S_NO/S_NH/S_PO4/BOD/COD/TN/TP/SS/SOR/SLR/TSS_blanket) + Tank-HRT(2차_HRT)
+      tags:
+        - 001-wwtp-pipeline
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Stage06PredictionRequest'
+      responses:
+        '200':
+          description: 2차 침전지 예측 성공
+          headers:
+            X-Prototype-Mode:
+              schema:
+                type: string
+                example: "true"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Stage06PredictionResponse'
+
+  /api/v1/predict/phosphorus-treatment:
+    post:
+      summary: 총인처리시설 예측 (FR-008, Stage 07)
+      description: |
+        화학적 인 제거 예측 (NEXT/HRT).
+        Input: Shared_current + Control(총인처리_coag_mg_L, coag_kg_d, Q_backwash, HRT) + State(총인처리_S_NO/S_NH/S_PO4/BOD/COD/TN/TP/SS_in/SS_eff/SS_removal)
+      tags:
+        - 001-wwtp-pipeline
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Stage07PredictionRequest'
+      responses:
+        '200':
+          description: 총인처리시설 예측 성공
+          headers:
+            X-Prototype-Mode:
+              schema:
+                type: string
+                example: "true"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Stage07PredictionResponse'
+
+  /api/v1/predict/effluent:
+    post:
+      summary: 방류수 예측 (FR-008, Stage 08)
+      description: |
+        최종 방류수 수질 예측 (NEXT/HRT).
+        법적 기준: BOD≤10, TOC≤25, SS≤10, TN≤20, TP≤0.2 mg/L
+        Input: Shared_current + Control(송풍_Q_air, n_running, 총인처리_coag_kg_d, HRT) + State(방류_SS/BOD/COD/TOC/TN/NH4/NO3/TP)
+      tags:
+        - 001-wwtp-pipeline
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Stage08PredictionRequest'
+      responses:
+        '200':
+          description: 방류수 예측 성공
+          headers:
+            X-Prototype-Mode:
+              schema:
+                type: string
+                example: "true"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Stage08PredictionResponse'
+
+  /api/v1/predict/history:
+    get:
+      summary: 예측 이력 조회
+      description: 과거 예측 이력 조회 (최근 7일, 페이지네이션 지원)
+      tags:
+        - 001-wwtp-pipeline
+      parameters:
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+          example: "2026-01-20"
+          description: 조회 시작 날짜
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+          example: "2026-01-27"
+          description: 조회 종료 날짜
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+          description: 조회 건수 제한
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: 조회 시작 위치
+      responses:
+        '200':
+          description: 예측 이력 조회 성공
+          headers:
+            X-Prototype-Mode:
+              schema:
+                type: string
+                example: "true"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                    description: 전체 건수
+                    example: 350
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FullPipelinePredictionResponse'
+
+  /api/v1/simulate/parameter-change:
+    post:
+      summary: 운영인자 변경 시나리오 시뮬레이션
+      description: MLSS, SRT, DO 등 운영인자 변경 시 방류수 수질 변화 시뮬레이션
+      tags:
+        - 001-wwtp-pipeline
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - base_conditions
+                - scenarios
+              properties:
+                base_conditions:
+                  type: object
+                  description: 기준 조건 (유입수 + 제어인자)
+                  required:
+                    - pipeline_input
+                  properties:
+                    pipeline_input:
+                      $ref: '#/components/schemas/PipelineInput'
+                    control_params:
+                      $ref: '#/components/schemas/SimulationControlParams'
+                scenarios:
+                  type: array
+                  maxItems: 5
+                  items:
+                    type: object
+                    required:
+                      - scenario_name
+                      - changes
+                    properties:
+                      scenario_name:
+                        type: string
+                        example: "송풍량 증가"
+                      changes:
+                        $ref: '#/components/schemas/SimulationControlParams'
+      responses:
+        '200':
+          description: 시나리오 시뮬레이션 성공
+          headers:
+            X-Prototype-Mode:
+              schema:
+                type: string
+                example: "true"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      base_result:
+                        $ref: '#/components/schemas/Stage08OutputHRT'
+                      scenario_results:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            scenario_name:
+                              type: string
+                            prediction:
+                              $ref: '#/components/schemas/Stage08OutputHRT'
+                            is_compliant:
+                              type: boolean
+                              description: 법적 기준 준수 여부
+                      recommended_scenario:
+                        type: string
+                        example: "MLSS 4000"
+                  metadata:
+                    $ref: '#/components/schemas/ResponseMetadata'
+                  warnings:
+                    type: array
+                    items:
+                      type: string
+
+components:
+  schemas:
+    # ─────────────────────────────────────────────
+    # Pipeline Input (유입수 8개 항목 - 한글 필드명)
+    # ─────────────────────────────────────────────
+    PipelineInput:
+      type: object
+      description: 유입수 8개 항목 - 전체 파이프라인 초기 입력
+      required:
+        - timestamp
+        - 유입유량
+        - 유입BOD
+        - 유입TN
+        - 유입TP
+        - 유입TOC
+        - 유입SS
+        - 수온
+        - pH
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: 측정 시간 (ISO 8601)
+          example: "2024-12-31T12:00:00"
+        유입유량:
+          type: number
+          format: float
+          description: 하수처리장 유입 유량 (m³/일)
+          minimum: 50000
+          maximum: 200000
+          example: 128000
+        유입BOD:
+          type: number
+          format: float
+          description: 생물화학적 산소요구량 (mg/L)
+          minimum: 50
+          maximum: 300
+          example: 156.8
+        유입TN:
+          type: number
+          format: float
+          description: 총 질소 농도 (mg/L)
+          minimum: 10
+          maximum: 50
+          example: 24.9
+        유입TP:
+          type: number
+          format: float
+          description: 총 인 농도 (mg/L)
+          minimum: 1
+          maximum: 10
+          example: 4.85
+        유입TOC:
+          type: number
+          format: float
+          description: 총 유기탄소 농도 (mg/L)
+          minimum: 20
+          maximum: 100
+          example: 49.31
+        유입SS:
+          type: number
+          format: float
+          description: 부유물질 농도 (mg/L)
+          minimum: 30
+          maximum: 300
+          example: 142.0
+        수온:
+          type: number
+          format: float
+          description: 수온 (℃)
+          minimum: 5
+          maximum: 30
+          example: 15.5
+        pH:
+          type: number
+          format: float
+          description: pH (수소이온농도 지수)
+          minimum: 6
+          maximum: 9
+          example: 7.2
+
+    # ─────────────────────────────────────────────
+    # Simulation Control Params (시뮬레이션 제어인자)
+    # ─────────────────────────────────────────────
+    SimulationControlParams:
+      type: object
+      description: 시뮬레이션 제어인자 (5개 운전 파라미터)
+      properties:
+        송풍량:
+          type: number
+          format: float
+          description: 호기조 송풍량 (m³/h)
+          minimum: 30000
+          maximum: 150000
+          example: 85000
+        내부반송율:
+          type: number
+          format: float
+          description: 내부반송율 (%)
+          minimum: 100
+          maximum: 500
+          example: 300
+        외부탄소원:
+          type: number
+          format: float
+          description: 외부탄소원 주입량 (kg/d)
+          minimum: 0
+          maximum: 500
+          example: 0
+        응집제주입:
+          type: number
+          format: float
+          description: 응집제 주입량 (mg/L)
+          minimum: 0
+          maximum: 50
+          example: 12.5
+        호기_MLSS:
+          type: number
+          format: float
+          description: 호기조 MLSS 농도 (mg/L)
+          minimum: 1500
+          maximum: 5000
+          example: 3200
+
+    # ─────────────────────────────────────────────
+    # Full Pipeline Request/Response
+    # ─────────────────────────────────────────────
+    FullPipelinePredictionRequest:
+      type: object
+      required:
+        - pipeline_input
+      properties:
+        pipeline_input:
+          $ref: '#/components/schemas/PipelineInput'
+        operating_conditions:
+          $ref: '#/components/schemas/OperatingConditions'
+
+    OperatingConditions:
+      type: object
+      description: 운전 파라미터 (Control features) - 선택적
+      properties:
+        # Stage 02 Control
+        일차_Q_sludge:
+          type: number
+          description: 1차침전지 슬러지 인발량
+        # Stage 03-04 Control
+        운전_Q_ir:
+          type: number
+          description: 내부반송 유량
+        운전_ir_ratio:
+          type: number
+          description: 내부반송율
+        운전_carbon_kg_d:
+          type: number
+          description: 탄소원 주입량 (kg/d)
+        운전_HRT:
+          type: number
+          description: 수리학적 체류시간
+        # Stage 05 Control
+        송풍_Q_air:
+          type: number
+          description: 송풍량
+        송풍_n_running:
+          type: number
+          description: 가동 송풍기 대수
+        호기_DO_setpoint:
+          type: number
+          description: DO 설정값 (mg/L)
+        # Stage 06 Control
+        운전_Q_ras:
+          type: number
+          description: 반송슬러지 유량
+        운전_ras_ratio:
+          type: number
+          description: 반송슬러지 비율
+        운전_Q_was:
+          type: number
+          description: 잉여슬러지 유량
+        운전_SS_was:
+          type: number
+          description: 잉여슬러지 SS
+        # Stage 07 Control
+        총인처리_coag_mg_L:
+          type: number
+          description: 응집제 농도 (mg/L)
+        총인처리_coag_kg_d:
+          type: number
+          description: 응집제 주입량 (kg/d)
+        총인처리_Q_backwash:
+          type: number
+          description: 역세척 유량
+        # HRT params
+        HRT_total_h_in:
+          type: number
+          description: 총 HRT (시간) - HRT 모델 전용
+        내부반송율_pct:
+          type: number
+          description: 내부반송율 (%) - HRT 모델 전용
+        외부반송율_pct:
+          type: number
+          description: 외부반송율 (%) - HRT 모델 전용
+
+    FullPipelinePredictionResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/FullPipelinePredictionData'
+        metadata:
+          $ref: '#/components/schemas/ResponseMetadata'
+        warnings:
+          type: array
+          description: 경고 메시지 (FR-010, FR-012)
+          items:
+            type: string
+          example:
+            - "방류수 TN이 법적 기준(20 mg/L)을 초과했습니다 (예측값: 22.5 mg/L)"
+
+    FullPipelinePredictionData:
+      type: object
+      properties:
+        predictions_next:
+          type: object
+          description: 각 단계별 NEXT 예측 (t→t+1, 1시간 후)
+          properties:
+            stage_01_유입수:
+              $ref: '#/components/schemas/Stage01OutputNEXT'
+            stage_02_일차침전지:
+              $ref: '#/components/schemas/Stage02OutputNEXT'
+            stage_03_혐기조:
+              $ref: '#/components/schemas/Stage03OutputNEXT'
+            stage_04_무산소조:
+              $ref: '#/components/schemas/Stage04OutputNEXT'
+            stage_05_호기조:
+              $ref: '#/components/schemas/Stage05OutputNEXT'
+            stage_06_이차침전지:
+              $ref: '#/components/schemas/Stage06OutputNEXT'
+            stage_07_총인처리:
+              $ref: '#/components/schemas/Stage07OutputNEXT'
+            stage_08_방류수:
+              $ref: '#/components/schemas/Stage08OutputNEXT'
+        predictions_hrt:
+          type: object
+          description: 각 단계별 HRT 예측 (t→t+13, 13시간 후)
+          properties:
+            stage_01_유입수:
+              $ref: '#/components/schemas/Stage01OutputHRT'
+            stage_02_일차침전지:
+              $ref: '#/components/schemas/Stage02OutputHRT'
+            stage_03_혐기조:
+              $ref: '#/components/schemas/Stage03OutputHRT'
+            stage_04_무산소조:
+              $ref: '#/components/schemas/Stage04OutputHRT'
+            stage_05_호기조:
+              $ref: '#/components/schemas/Stage05OutputHRT'
+            stage_06_이차침전지:
+              $ref: '#/components/schemas/Stage06OutputHRT'
+            stage_07_총인처리:
+              $ref: '#/components/schemas/Stage07OutputHRT'
+            stage_08_방류수:
+              $ref: '#/components/schemas/Stage08OutputHRT'
+        pipeline_output:
+          $ref: '#/components/schemas/PipelineOutput'
+        compliance:
+          type: object
+          description: 방류수 법적 기준 준수 여부 (FR-010)
+          properties:
+            BOD:
+              $ref: '#/components/schemas/ComplianceCheck'
+            TOC:
+              $ref: '#/components/schemas/ComplianceCheck'
+            SS:
+              $ref: '#/components/schemas/ComplianceCheck'
+            TN:
+              $ref: '#/components/schemas/ComplianceCheck'
+            TP:
+              $ref: '#/components/schemas/ComplianceCheck'
+
+    # ─────────────────────────────────────────────
+    # Stage Output Schemas (NEXT/HRT 이중 모델)
+    # ─────────────────────────────────────────────
+
+    Stage01OutputNEXT:
+      type: object
+      description: "Stage 01 유입수 - NEXT (t→t+1) 부하량 예측"
+      properties:
+        BOD_부하량_next:
+          type: number
+          description: 1시간 후 BOD 부하량 (kg/일)
+          example: 20070.4
+        TN_부하량_next:
+          type: number
+          description: 1시간 후 TN 부하량 (kg/일)
+          example: 3187.2
+        TP_부하량_next:
+          type: number
+          description: 1시간 후 TP 부하량 (kg/일)
+          example: 620.8
+
+    Stage01OutputHRT:
+      type: object
+      description: "Stage 01 유입수 - HRT (t→t+13) 부하량 예측"
+      properties:
+        BOD_부하량_hrt:
+          type: number
+          description: HRT 후 BOD 부하량 (kg/일)
+          example: 19850.2
+        TN_부하량_hrt:
+          type: number
+          description: HRT 후 TN 부하량 (kg/일)
+          example: 3150.5
+        TP_부하량_hrt:
+          type: number
+          description: HRT 후 TP 부하량 (kg/일)
+          example: 612.3
+
+    Stage02OutputNEXT:
+      type: object
+      description: "Stage 02 일차침전지 - NEXT (t→t+1)"
+      properties:
+        일차침전_SS_eff_next:
+          type: number
+          description: 1시간 후 유출 SS (mg/L)
+          example: 95.2
+        일차침전_BOD_eff_next:
+          type: number
+          description: 1시간 후 유출 BOD (mg/L)
+          example: 125.3
+
+    Stage02OutputHRT:
+      type: object
+      description: "Stage 02 일차침전지 - HRT (t→t+13)"
+      properties:
+        일차침전_SS_eff_hrt:
+          type: number
+          description: HRT 후 유출 SS (mg/L)
+          example: 93.5
+        일차침전_BOD_eff_hrt:
+          type: number
+          description: HRT 후 유출 BOD (mg/L)
+          example: 123.8
+
+    Stage03OutputNEXT:
+      type: object
+      description: "Stage 03 혐기조 - NEXT (t→t+1)"
+      properties:
+        혐기_S_A_next:
+          type: number
+          description: 1시간 후 acetate (mg/L)
+        혐기_S_PO4_next:
+          type: number
+          description: 1시간 후 인산염 인 (mg/L)
+          example: 6.8
+        혐기_S_NH_next:
+          type: number
+          description: 1시간 후 암모니아성 질소 (mg/L)
+        혐기_MLSS_next:
+          type: number
+          description: 1시간 후 MLSS (mg/L)
+          example: 2850
+        혐기_BOD_next:
+          type: number
+          description: 1시간 후 BOD (mg/L)
+
+    Stage03OutputHRT:
+      type: object
+      description: "Stage 03 혐기조 - HRT (t→t+13)"
+      properties:
+        혐기_S_A_hrt:
+          type: number
+          description: HRT 후 acetate (mg/L)
+        혐기_S_PO4_hrt:
+          type: number
+          description: HRT 후 인산염 인 (mg/L)
+        혐기_S_NH_hrt:
+          type: number
+          description: HRT 후 암모니아성 질소 (mg/L)
+        혐기_MLSS_hrt:
+          type: number
+          description: HRT 후 MLSS (mg/L)
+        혐기_BOD_hrt:
+          type: number
+          description: HRT 후 BOD (mg/L)
+
+    Stage04OutputNEXT:
+      type: object
+      description: "Stage 04 무산소조 - NEXT (t→t+1)"
+      properties:
+        무산소_S_NO_next:
+          type: number
+          description: 1시간 후 질산성 질소 (mg/L)
+          example: 3.2
+        무산소_S_NH_next:
+          type: number
+          description: 1시간 후 암모니아성 질소 (mg/L)
+          example: 18.5
+        무산소_S_A_next:
+          type: number
+          description: 1시간 후 acetate (mg/L)
+        무산소_MLSS_next:
+          type: number
+          description: 1시간 후 MLSS (mg/L)
+          example: 2950
+        무산소_BOD_next:
+          type: number
+          description: 1시간 후 BOD (mg/L)
+
+    Stage04OutputHRT:
+      type: object
+      description: "Stage 04 무산소조 - HRT (t→t+13)"
+      properties:
+        무산소_S_NO_hrt:
+          type: number
+          description: HRT 후 질산성 질소 (mg/L)
+        무산소_S_NH_hrt:
+          type: number
+          description: HRT 후 암모니아성 질소 (mg/L)
+        무산소_S_A_hrt:
+          type: number
+          description: HRT 후 acetate (mg/L)
+        무산소_MLSS_hrt:
+          type: number
+          description: HRT 후 MLSS (mg/L)
+        무산소_BOD_hrt:
+          type: number
+          description: HRT 후 BOD (mg/L)
+
+    Stage05OutputNEXT:
+      type: object
+      description: "Stage 05 호기조 - NEXT (t→t+1)"
+      properties:
+        호기_S_NO_next:
+          type: number
+          description: 1시간 후 질산성 질소 (mg/L)
+          example: 12.5
+        호기_S_NH_next:
+          type: number
+          description: 1시간 후 암모니아성 질소 (mg/L)
+          example: 1.8
+        호기_MLSS_next:
+          type: number
+          description: 1시간 후 MLSS (mg/L)
+          example: 3200
+        호기_DO_next:
+          type: number
+          description: 1시간 후 DO (mg/L)
+        호기_BOD_next:
+          type: number
+          description: 1시간 후 BOD (mg/L)
+
+    Stage05OutputHRT:
+      type: object
+      description: "Stage 05 호기조 - HRT (t→t+13)"
+      properties:
+        호기_S_NO_hrt:
+          type: number
+          description: HRT 후 질산성 질소 (mg/L)
+        호기_S_NH_hrt:
+          type: number
+          description: HRT 후 암모니아성 질소 (mg/L)
+        호기_MLSS_hrt:
+          type: number
+          description: HRT 후 MLSS (mg/L)
+        호기_DO_hrt:
+          type: number
+          description: HRT 후 DO (mg/L)
+        호기_BOD_hrt:
+          type: number
+          description: HRT 후 BOD (mg/L)
+
+    Stage06OutputNEXT:
+      type: object
+      description: "Stage 06 이차침전지 - NEXT (t→t+1)"
+      properties:
+        이차침전_SS_next:
+          type: number
+          description: 1시간 후 SS (mg/L)
+        이차침전_TN_next:
+          type: number
+          description: 1시간 후 TN (mg/L)
+        이차침전_TP_next:
+          type: number
+          description: 1시간 후 TP (mg/L)
+        이차침전_BOD_next:
+          type: number
+          description: 1시간 후 BOD (mg/L)
+        이차침전_COD_next:
+          type: number
+          description: 1시간 후 COD (mg/L)
+
+    Stage06OutputHRT:
+      type: object
+      description: "Stage 06 이차침전지 - HRT (t→t+13)"
+      properties:
+        이차침전_S_NO_hrt:
+          type: number
+          description: HRT 후 질산성 질소 (mg/L)
+        이차침전_S_NH_hrt:
+          type: number
+          description: HRT 후 암모니아성 질소 (mg/L)
+        이차침전_S_PO4_hrt:
+          type: number
+          description: HRT 후 인산염 인 (mg/L)
+        이차침전_SS_hrt:
+          type: number
+          description: HRT 후 SS (mg/L)
+        이차침전_TN_hrt:
+          type: number
+          description: HRT 후 TN (mg/L)
+        이차침전_TP_hrt:
+          type: number
+          description: HRT 후 TP (mg/L)
+        이차침전_BOD_hrt:
+          type: number
+          description: HRT 후 BOD (mg/L)
+        이차침전_COD_hrt:
+          type: number
+          description: HRT 후 COD (mg/L)
+
+    Stage07OutputNEXT:
+      type: object
+      description: "Stage 07 총인처리 - NEXT (t→t+1)"
+      properties:
+        총인처리_TN_next:
+          type: number
+          description: 1시간 후 TN (mg/L)
+        총인처리_TP_next:
+          type: number
+          description: 1시간 후 TP (mg/L)
+          example: 0.12
+
+    Stage07OutputHRT:
+      type: object
+      description: "Stage 07 총인처리 - HRT (t→t+13)"
+      properties:
+        총인처리_TN_hrt:
+          type: number
+          description: HRT 후 TN (mg/L)
+        총인처리_TP_hrt:
+          type: number
+          description: HRT 후 TP (mg/L)
+
+    Stage08OutputNEXT:
+      type: object
+      description: "Stage 08 방류수 - NEXT (t→t+1)"
+      properties:
+        방류_SS_next:
+          type: number
+          description: 1시간 후 SS (mg/L)
+          example: 3.8
+        방류_TN_next:
+          type: number
+          description: 1시간 후 TN (mg/L)
+          example: 14.2
+        방류_TP_next:
+          type: number
+          description: 1시간 후 TP (mg/L)
+          example: 0.08
+        방류_BOD_next:
+          type: number
+          description: 1시간 후 BOD (mg/L)
+          example: 4.5
+        방류_COD_next:
+          type: number
+          description: 1시간 후 COD (mg/L)
+        방류_NH4_next:
+          type: number
+          description: 1시간 후 NH4 (mg/L)
+        방류_NO3_next:
+          type: number
+          description: 1시간 후 NO3 (mg/L)
+
+    Stage08OutputHRT:
+      type: object
+      description: "Stage 08 방류수 - HRT (t→t+13)"
+      properties:
+        방류_SS_hrt:
+          type: number
+          description: HRT 후 SS (mg/L)
+        방류_TN_hrt:
+          type: number
+          description: HRT 후 TN (mg/L)
+        방류_TP_hrt:
+          type: number
+          description: HRT 후 TP (mg/L)
+        방류_BOD_hrt:
+          type: number
+          description: HRT 후 BOD (mg/L)
+        방류_COD_hrt:
+          type: number
+          description: HRT 후 COD (mg/L)
+        방류_NH4_hrt:
+          type: number
+          description: HRT 후 NH4 (mg/L)
+        방류_NO3_hrt:
+          type: number
+          description: HRT 후 NO3 (mg/L)
+
+    # ─────────────────────────────────────────────
+    # Pipeline Output (최종 출력 + 메타데이터)
+    # ─────────────────────────────────────────────
+    PipelineOutput:
+      type: object
+      description: 최종 방류수 5개 항목 + 실행 메타데이터
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: 예측 시간 (입력 timestamp + 1시간)
+          example: "2024-12-31T13:00:00"
+        방류_BOD:
+          type: number
+          description: BOD (mg/L)
+          example: 4.5
+        방류_TOC:
+          type: number
+          description: TOC (mg/L)
+          example: 12.3
+        방류_SS:
+          type: number
+          description: SS (mg/L)
+          example: 3.8
+        방류_TN:
+          type: number
+          description: TN (mg/L)
+          example: 14.2
+        방류_TP:
+          type: number
+          description: TP (mg/L)
+          example: 0.08
+        compliance_check:
+          type: object
+          description: 각 항목별 법적 기준 준수 여부
+          properties:
+            BOD:
+              type: boolean
+            TOC:
+              type: boolean
+            SS:
+              type: boolean
+            TN:
+              type: boolean
+            TP:
+              type: boolean
+          example:
+            BOD: true
+            TOC: true
+            SS: true
+            TN: true
+            TP: true
+        quality_flag:
+          type: string
+          enum: [high, medium, low, degraded]
+          description: "예측 품질 등급 (high: 모든 피처 사용, medium: <10% 결측, low: 10-50% 결측, degraded: >50% 결측)"
+          example: "high"
+        missing_features_pct:
+          type: number
+          description: 결측 피처 비율 (%)
+          example: 0.0
+        execution_time_seconds:
+          type: number
+          description: 파이프라인 실행 시간 (초)
+          example: 0.85
+        model_versions:
+          type: object
+          description: 각 단계별 모델 버전
+          example:
+            stage_01: "v1.0"
+            stage_02: "v1.0"
+            stage_03: "v1.0"
+            stage_04: "v1.0"
+            stage_05: "v1.0"
+            stage_06: "v2.0"
+            stage_07: "v1.0"
+            stage_08: "v1.0"
+
+    # ─────────────────────────────────────────────
+    # Individual Stage Request/Response Schemas
+    # ─────────────────────────────────────────────
+
+    Stage01PredictionRequest:
+      type: object
+      required:
+        - pipeline_input
+      properties:
+        pipeline_input:
+          $ref: '#/components/schemas/PipelineInput'
+
+    Stage01PredictionResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            stage_name:
+              type: string
+              example: "01_유입수"
+            next:
+              $ref: '#/components/schemas/Stage01OutputNEXT'
+            hrt:
+              $ref: '#/components/schemas/Stage01OutputHRT'
+        metadata:
+          $ref: '#/components/schemas/ResponseMetadata'
+        warnings:
+          type: array
+          items:
+            type: string
+
+    Stage02PredictionRequest:
+      type: object
+      required:
+        - shared_current
+      properties:
+        shared_current:
+          $ref: '#/components/schemas/PipelineInput'
+        control:
+          type: object
+          properties:
+            일차_Q_sludge:
+              type: number
+              description: 슬러지 인발량
+        state:
+          type: object
+          properties:
+            일차_SS_in:
+              type: number
+            일차_SS_eff:
+              type: number
+            일차_BOD_in:
+              type: number
+            일차_BOD_eff:
+              type: number
+            일차_S_NH_in:
+              type: number
+            일차_S_NH_eff:
+              type: number
+            일차_S_PO4_in:
+              type: number
+            일차_S_PO4_eff:
+              type: number
+            운전_HRT:
+              type: number
+        hrt_param:
+          type: object
+          description: HRT 모델 전용 파라미터
+          properties:
+            HRT_total_h_in:
+              type: number
+
+    Stage02PredictionResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            stage_name:
+              type: string
+              example: "02_일차침전지"
+            next:
+              $ref: '#/components/schemas/Stage02OutputNEXT'
+            hrt:
+              $ref: '#/components/schemas/Stage02OutputHRT'
+        metadata:
+          $ref: '#/components/schemas/ResponseMetadata'
+        warnings:
+          type: array
+          items:
+            type: string
+
+    Stage03PredictionRequest:
+      type: object
+      required:
+        - shared_current
+      properties:
+        shared_current:
+          $ref: '#/components/schemas/PipelineInput'
+        control:
+          type: object
+          properties:
+            운전_Q_ir:
+              type: number
+            운전_ir_ratio:
+              type: number
+            운전_carbon_kg_d:
+              type: number
+            운전_HRT:
+              type: number
+        state:
+          type: object
+          properties:
+            혐기_MLSS:
+              type: number
+            혐기_DO:
+              type: number
+            혐기_S_NO:
+              type: number
+            혐기_S_NH:
+              type: number
+            혐기_S_PO4:
+              type: number
+            혐기_BOD:
+              type: number
+        hrt_param:
+          type: object
+          properties:
+            HRT_total_h_in:
+              type: number
+            내부반송율_pct:
+              type: number
+
+    Stage03PredictionResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            stage_name:
+              type: string
+              example: "03_혐기조"
+            next:
+              $ref: '#/components/schemas/Stage03OutputNEXT'
+            hrt:
+              $ref: '#/components/schemas/Stage03OutputHRT'
+        metadata:
+          $ref: '#/components/schemas/ResponseMetadata'
+        warnings:
+          type: array
+          items:
+            type: string
+
+    Stage04PredictionRequest:
+      type: object
+      required:
+        - shared_current
+      properties:
+        shared_current:
+          $ref: '#/components/schemas/PipelineInput'
+        control:
+          type: object
+          properties:
+            운전_Q_ir:
+              type: number
+            운전_ir_ratio:
+              type: number
+            운전_carbon_kg_d:
+              type: number
+            운전_HRT:
+              type: number
+        state:
+          type: object
+          properties:
+            무산소_MLSS:
+              type: number
+            무산소_DO:
+              type: number
+            무산소_S_NO:
+              type: number
+            무산소_S_NH:
+              type: number
+            무산소_S_PO4:
+              type: number
+            무산소_BOD:
+              type: number
+        hrt_param:
+          type: object
+          properties:
+            HRT_total_h_in:
+              type: number
+            내부반송율_pct:
+              type: number
+
+    Stage04PredictionResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            stage_name:
+              type: string
+              example: "04_무산소조"
+            next:
+              $ref: '#/components/schemas/Stage04OutputNEXT'
+            hrt:
+              $ref: '#/components/schemas/Stage04OutputHRT'
+        metadata:
+          $ref: '#/components/schemas/ResponseMetadata'
+        warnings:
+          type: array
+          items:
+            type: string
+
+    Stage05PredictionRequest:
+      type: object
+      required:
+        - shared_current
+      properties:
+        shared_current:
+          $ref: '#/components/schemas/PipelineInput'
+        control:
+          type: object
+          properties:
+            송풍_Q_air:
+              type: number
+            송풍_n_running:
+              type: number
+            호기_DO_setpoint:
+              type: number
+            운전_HRT:
+              type: number
+        state:
+          type: object
+          properties:
+            호기_MLSS:
+              type: number
+            호기_DO:
+              type: number
+            호기_S_NO:
+              type: number
+            호기_S_NH:
+              type: number
+            호기_S_PO4:
+              type: number
+            호기_BOD:
+              type: number
+        hrt_param:
+          type: object
+          properties:
+            HRT_total_h_in:
+              type: number
+
+    Stage05PredictionResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            stage_name:
+              type: string
+              example: "05_호기조"
+            next:
+              $ref: '#/components/schemas/Stage05OutputNEXT'
+            hrt:
+              $ref: '#/components/schemas/Stage05OutputHRT'
+        metadata:
+          $ref: '#/components/schemas/ResponseMetadata'
+        warnings:
+          type: array
+          items:
+            type: string
+
+    Stage06PredictionRequest:
+      type: object
+      required:
+        - shared_current
+      properties:
+        shared_current:
+          $ref: '#/components/schemas/PipelineInput'
+        control:
+          type: object
+          properties:
+            운전_Q_ras:
+              type: number
+            운전_ras_ratio:
+              type: number
+            운전_Q_was:
+              type: number
+            운전_SS_was:
+              type: number
+        state:
+          type: object
+          properties:
+            이차_DO:
+              type: number
+            이차_S_NO:
+              type: number
+            이차_S_NH:
+              type: number
+            이차_S_PO4:
+              type: number
+            이차_BOD:
+              type: number
+            이차_COD:
+              type: number
+            이차_TN:
+              type: number
+            이차_TP:
+              type: number
+            이차_SS:
+              type: number
+            이차_SOR:
+              type: number
+            이차_SLR:
+              type: number
+            이차_TSS_blanket:
+              type: number
+            이차_HRT:
+              type: number
+        hrt_param:
+          type: object
+          properties:
+            HRT_total_h_in:
+              type: number
+            외부반송율_pct:
+              type: number
+
+    Stage06PredictionResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            stage_name:
+              type: string
+              example: "06_이차침전지"
+            next:
+              $ref: '#/components/schemas/Stage06OutputNEXT'
+            hrt:
+              $ref: '#/components/schemas/Stage06OutputHRT'
+        metadata:
+          $ref: '#/components/schemas/ResponseMetadata'
+        warnings:
+          type: array
+          items:
+            type: string
+
+    Stage07PredictionRequest:
+      type: object
+      required:
+        - shared_current
+      properties:
+        shared_current:
+          $ref: '#/components/schemas/PipelineInput'
+        control:
+          type: object
+          properties:
+            총인처리_coag_mg_L:
+              type: number
+            총인처리_coag_kg_d:
+              type: number
+            총인처리_Q_backwash:
+              type: number
+            운전_HRT:
+              type: number
+        state:
+          type: object
+          properties:
+            총인처리_S_NO:
+              type: number
+            총인처리_S_NH:
+              type: number
+            총인처리_S_PO4:
+              type: number
+            총인처리_BOD:
+              type: number
+            총인처리_COD:
+              type: number
+            총인처리_TN:
+              type: number
+            총인처리_TP:
+              type: number
+            총인처리_SS_in:
+              type: number
+            총인처리_SS_eff:
+              type: number
+            총인처리_SS_removal:
+              type: number
+        hrt_param:
+          type: object
+          properties:
+            HRT_total_h_in:
+              type: number
+
+    Stage07PredictionResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            stage_name:
+              type: string
+              example: "07_총인처리"
+            next:
+              $ref: '#/components/schemas/Stage07OutputNEXT'
+            hrt:
+              $ref: '#/components/schemas/Stage07OutputHRT'
+        metadata:
+          $ref: '#/components/schemas/ResponseMetadata'
+        warnings:
+          type: array
+          items:
+            type: string
+
+    Stage08PredictionRequest:
+      type: object
+      required:
+        - shared_current
+      properties:
+        shared_current:
+          $ref: '#/components/schemas/PipelineInput'
+        control:
+          type: object
+          properties:
+            송풍_Q_air:
+              type: number
+            송풍_n_running:
+              type: number
+            총인처리_coag_kg_d:
+              type: number
+            운전_HRT:
+              type: number
+        state:
+          type: object
+          properties:
+            방류_SS:
+              type: number
+            방류_BOD:
+              type: number
+            방류_COD:
+              type: number
+            방류_TOC:
+              type: number
+            방류_TN:
+              type: number
+            방류_NH4:
+              type: number
+            방류_NO3:
+              type: number
+            방류_TP:
+              type: number
+        hrt_param:
+          type: object
+          properties:
+            HRT_total_h_in:
+              type: number
+
+    Stage08PredictionResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            stage_name:
+              type: string
+              example: "08_방류수"
+            next:
+              $ref: '#/components/schemas/Stage08OutputNEXT'
+            hrt:
+              $ref: '#/components/schemas/Stage08OutputHRT'
+        metadata:
+          $ref: '#/components/schemas/ResponseMetadata'
+        warnings:
+          type: array
+          items:
+            type: string
+
+    # ─────────────────────────────────────────────
+    # Compliance & Metadata
+    # ─────────────────────────────────────────────
+    ComplianceCheck:
+      type: object
+      properties:
+        limit:
+          type: number
+          description: 법적 기준 (mg/L)
+        predicted:
+          type: number
+          description: 예측값 (mg/L)
+        compliant:
+          type: boolean
+          description: 기준 준수 여부
+        margin:
+          type: number
+          description: 여유율 (%)
+      example:
+        limit: 10.0
+        predicted: 4.5
+        compliant: true
+        margin: 55.0
+
+    ResponseMetadata:
+      type: object
+      properties:
+        request_id:
+          type: string
+          description: 요청 ID
+          example: "req_20260127_abcdef123456"
+        timestamp:
+          type: string
+          format: date-time
+          description: 응답 생성 시간
+          example: "2026-01-27T15:30:00Z"
+        processing_time_ms:
+          type: integer
+          description: 처리 시간 (밀리초)
+          example: 1850
+        module_used:
+          type: string
+          description: 사용된 모듈
+          example: "001-wwtp-pipeline"
+        version:
+          type: string
+          description: API 버전
+          example: "v1"
+        missing_handled:
+          type: object
+          description: 센서 결측 처리 방법 (FR-011)
+          properties:
+            method:
+              type: string
+              enum: [none, forward_fill, cold_start, interpolation]
+              example: "forward_fill"
+            missing_fields:
+              type: array
+              items:
+                type: string
+              example: ["수온", "pH"]
+            imputation_details:
+              type: string
+              example: "수온 센서 결측 3시간, forward fill 적용"
+        model_performance:
+          type: object
+          description: 모델 성능 지표 (FR-012)
+          properties:
+            MAPE:
+              type: number
+              description: 평균 절대 백분율 오차 (%)
+              example: 15.3
+            R2:
+              type: number
+              description: 결정계수
+              example: 0.92
+            degraded:
+              type: boolean
+              description: 성능 저하 여부 (MAPE > 20%)
+              example: false
+
+    ErrorResponse:
+      type: object
+      properties:
+        type:
+          type: string
+          description: 오류 타입 URI
+          example: "https://api.wwtp.example.com/problems/validation-error"
+        title:
+          type: string
+          description: 오류 제목
+          example: "Input Validation Failed"
+        status:
+          type: integer
+          description: HTTP 상태 코드
+          example: 422
+        detail:
+          type: string
+          description: 오류 상세 설명
+          example: "Required field '유입BOD' is missing"
+        instance:
+          type: string
+          description: 오류 발생 엔드포인트
+          example: "/api/v1/predict/full-pipeline"
+        request_id:
+          type: string
+          description: 요청 ID
+          example: "req_20260127_xyz789"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-01-27T15:30:00Z"
+        errors:
+          type: array
+          description: 필드별 상세 오류 (422 응답 시)
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                example: "유입BOD"
+              message:
+                type: string
+                example: "Field required"
+              type:
+                type: string
+                example: "missing"
+
+  responses:
+    BadRequest:
+      description: 잘못된 요청
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.wwtp.example.com/problems/bad-request"
+            title: "Bad Request"
+            status: 400
+            detail: "Invalid parameter value"
+            request_id: "req_20260127_error001"
+
+    InternalError:
+      description: 서버 내부 오류
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            type: "https://api.wwtp.example.com/problems/internal-error"
+            title: "Internal Server Error"
+            status: 500
+            detail: "Unexpected error occurred"
+            request_id: "req_20260127_error002"

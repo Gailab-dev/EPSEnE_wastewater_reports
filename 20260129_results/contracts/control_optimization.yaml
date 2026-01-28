@@ -1,0 +1,441 @@
+openapi: 3.0.3
+info:
+  title: 제어 최적화 API (006-control-optimization)
+  version: 1.0.0-prototype
+  description: 유입수질 기반 피드포워드 제어 최적화 및 관리 mock API
+
+servers:
+  - url: http://localhost:8000
+    description: 프로토타입 API 서버
+
+paths:
+  /api/v1/control/command:
+    post:
+      summary: 최적 제어인자 도출
+      description: 유입수질과 방류수질 목표를 입력하면, 전체 공정 시뮬레이션을 통해 목표를 만족시키는 최적 제어인자와 예상 방류수질을 반환
+      tags:
+        - 006-control-optimization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - influent
+                - effluent_targets
+              properties:
+                execution_mode:
+                  type: string
+                  enum: [recommendation, auto_execute]
+                  default: recommendation
+                  example: "recommendation"
+                influent:
+                  type: object
+                  description: 유입수질 데이터
+                  required:
+                    - flow_rate
+                    - BOD
+                    - COD
+                    - TN
+                    - TP
+                    - temperature
+                    - pH
+                  properties:
+                    flow_rate:
+                      type: number
+                      description: 유입유량 (m³/day)
+                      example: 128000
+                    BOD:
+                      type: number
+                      description: 유입 BOD (mg/L)
+                      example: 156.8
+                    COD:
+                      type: number
+                      description: 유입 COD (mg/L)
+                      example: 98.5
+                    TN:
+                      type: number
+                      description: 유입 TN (mg/L)
+                      example: 24.9
+                    TP:
+                      type: number
+                      description: 유입 TP (mg/L)
+                      example: 4.85
+                    temperature:
+                      type: number
+                      description: 수온 (°C)
+                      example: 18.5
+                    pH:
+                      type: number
+                      description: pH
+                      example: 7.2
+                effluent_targets:
+                  type: object
+                  description: 방류수질 목표값
+                  required:
+                    - BOD
+                    - COD
+                    - TN
+                    - TP
+                  properties:
+                    BOD:
+                      type: number
+                      description: 방류 BOD 목표 (mg/L)
+                      example: 10.0
+                    COD:
+                      type: number
+                      description: 방류 COD 목표 (mg/L)
+                      example: 40.0
+                    TN:
+                      type: number
+                      description: 방류 TN 목표 (mg/L)
+                      example: 20.0
+                    TP:
+                      type: number
+                      description: 방류 TP 목표 (mg/L)
+                      example: 0.2
+      responses:
+        '200':
+          description: 제어 지령 생성 성공
+          headers:
+            X-Prototype-Mode:
+              schema:
+                type: string
+                example: "true"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControlCommand'
+
+  /api/v1/control/command/{command_id}:
+    get:
+      summary: 제어 지령 상태 조회
+      description: 특정 제어 지령의 상태 조회
+      tags:
+        - 006-control-optimization
+      parameters:
+        - name: command_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        '200':
+          description: 제어 지령 상태 조회 성공
+          headers:
+            X-Prototype-Mode:
+              schema:
+                type: string
+                example: "true"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControlCommand'
+        '404':
+          description: 제어 지령을 찾을 수 없음
+
+  /api/v1/control/history:
+    get:
+      summary: 제어 이력 조회
+      description: 제어 이력 조회 (성공/실패 상태별 필터링)
+      tags:
+        - 006-control-optimization
+      parameters:
+        - name: start_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          example: "2026-01-01T00:00:00Z"
+        - name: end_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          example: "2026-01-31T23:59:59Z"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: 제어 이력 조회 성공
+          headers:
+            X-Prototype-Mode:
+              schema:
+                type: string
+                example: "true"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                    example: 120
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ControlHistory'
+
+  /api/v1/control/statistics:
+    get:
+      summary: 제어 성능 통계 조회
+      description: 제어 성능 통계 조회 (에너지 절감량, 비용 절감액, 성공률)
+      tags:
+        - 006-control-optimization
+      parameters:
+        - name: period_start
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          example: "2026-01-01"
+        - name: period_end
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          example: "2026-01-31"
+        - name: aggregation
+          in: query
+          schema:
+            type: string
+            enum: [daily, weekly, monthly]
+            default: daily
+      responses:
+        '200':
+          description: 제어 통계 조회 성공
+          headers:
+            X-Prototype-Mode:
+              schema:
+                type: string
+                example: "true"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  period:
+                    type: object
+                    properties:
+                      start:
+                        type: string
+                        format: date
+                      end:
+                        type: string
+                        format: date
+                  statistics:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ControlStatistics'
+
+components:
+  schemas:
+    ControlCommand:
+      type: object
+      properties:
+        command_id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-01-27T14:30:00Z"
+        execution_mode:
+          type: string
+          enum: [recommendation, auto_execute]
+          example: "recommendation"
+        status:
+          type: string
+          enum: [pending, executing, completed, failed]
+          example: "completed"
+        optimized_controls:
+          type: object
+          description: 최적 제어인자 값 (전체 공정 시뮬레이션 결과)
+          properties:
+            송풍량:
+              type: number
+              description: 호기조 송풍량 (m³/h)
+              example: 72000
+            내부반송율:
+              type: number
+              description: 내부반송율 (%)
+              example: 280
+            외부탄소원:
+              type: number
+              description: 외부탄소원 주입량 (kg/d)
+              example: 50
+            응집제주입:
+              type: number
+              description: 응집제 주입량 (mg/L)
+              example: 15.0
+            호기_MLSS:
+              type: number
+              description: 호기조 MLSS 농도 (mg/L)
+              example: 3400
+            호기_DO:
+              type: number
+              description: 호기조 DO 설정값 (mg/L)
+              example: 2.5
+        predicted_effluent:
+          type: object
+          description: 최적 제어인자 적용 시 예상 방류수질
+          properties:
+            BOD:
+              type: number
+              example: 4.2
+            COD:
+              type: number
+              example: 12.3
+            TN:
+              type: number
+              example: 13.8
+            TP:
+              type: number
+              example: 0.07
+            SS:
+              type: number
+              example: 3.5
+            NH4:
+              type: number
+              example: 0.8
+        energy_cost_reduction_pct:
+          type: number
+          description: 에너지 비용 절감률 (%)
+          example: 12.8
+        result:
+          type: string
+          enum: [success, failure, timeout]
+          example: "success"
+
+    ControlHistory:
+      type: object
+      properties:
+        history_id:
+          type: string
+          format: uuid
+          example: "660e8400-e29b-41d4-a716-446655440001"
+        command_id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-01-27T14:30:00Z"
+        optimized_controls:
+          type: object
+          description: 적용된 최적 제어인자
+          properties:
+            송풍량:
+              type: number
+              example: 72000
+            내부반송율:
+              type: number
+              example: 280
+            외부탄소원:
+              type: number
+              example: 50
+            응집제주입:
+              type: number
+              example: 15.0
+            호기_MLSS:
+              type: number
+              example: 3400
+            호기_DO:
+              type: number
+              example: 2.5
+        pre_control_effluent:
+          type: object
+          description: 제어 전 방류수질
+          properties:
+            BOD:
+              type: number
+              example: 7.5
+            COD:
+              type: number
+              example: 18.2
+            TN:
+              type: number
+              example: 16.5
+            TP:
+              type: number
+              example: 0.12
+            SS:
+              type: number
+              example: 5.2
+            NH4:
+              type: number
+              example: 2.1
+        post_control_effluent:
+          type: object
+          description: 제어 후 방류수질
+          properties:
+            BOD:
+              type: number
+              example: 4.2
+            COD:
+              type: number
+              example: 12.3
+            TN:
+              type: number
+              example: 13.8
+            TP:
+              type: number
+              example: 0.07
+            SS:
+              type: number
+              example: 3.5
+            NH4:
+              type: number
+              example: 0.8
+        execution_status:
+          type: string
+          example: "completed"
+        success:
+          type: boolean
+          example: true
+        energy_saving_kwh:
+          type: number
+          example: 125.5
+        cost_saving_krw:
+          type: number
+          example: 12550.0
+
+    ControlStatistics:
+      type: object
+      properties:
+        period:
+          type: string
+          description: 집계 기간
+          example: "2026-01-01 ~ 2026-01-31"
+        total_commands:
+          type: integer
+          example: 120
+        success_count:
+          type: integer
+          example: 102
+        success_rate_pct:
+          type: number
+          example: 85.0
+        avg_energy_saving_kwh:
+          type: number
+          example: 3.5
+        total_cost_saving_krw:
+          type: number
+          example: 42000.0

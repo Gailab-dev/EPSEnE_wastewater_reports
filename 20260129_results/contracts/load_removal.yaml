@@ -1,0 +1,254 @@
+openapi: 3.0.3
+info:
+  title: 부하 제거량 계산 API (002-load-removal-calc)
+  version: 1.0.0-prototype
+  description: 유입 부하량 기반 BOD, TN, TP 제거량 및 제거율 계산 mock API. 유입수 또는 특정 반응조(혐기조/무산소조/호기조) 기준 부하량 측정 지원.
+
+servers:
+  - url: http://localhost:8000
+    description: 프로토타입 API 서버
+
+paths:
+  /api/v1/load/calculate:
+    post:
+      summary: 부하 제거량 계산
+      description: 유입유량과 수질 데이터를 입력하고, 측정 대상 탱크를 지정하면 해당 지점의 BOD, TN, TP, SS 부하량 및 제거율을 반환
+      tags:
+        - 002-load-removal-calc
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoadCalculationRequest'
+      responses:
+        '200':
+          description: 부하 제거량 계산 성공
+          headers:
+            X-Prototype-Mode:
+              schema:
+                type: string
+                example: "true"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoadCalculationResponse'
+        '400':
+          description: 잘못된 요청
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/load/statistics:
+    get:
+      summary: 부하 제거량 통계
+      description: 기간별 부하 제거량 통계 조회 (평균, 최대, 최소). target_tank 필터 지원.
+      tags:
+        - 002-load-removal-calc
+      parameters:
+        - name: start_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          example: "2026-01-01"
+          description: 조회 시작일
+        - name: end_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          example: "2026-01-31"
+          description: 조회 종료일
+        - name: interval
+          in: query
+          schema:
+            type: string
+            enum: [daily, weekly, monthly]
+            default: daily
+          description: 집계 간격
+        - name: target_tank
+          in: query
+          schema:
+            type: string
+            enum: [influent, anaerobic, anoxic, aerobic]
+          description: 측정 대상 탱크 필터 (미지정 시 전체)
+      responses:
+        '200':
+          description: 통계 조회 성공
+          headers:
+            X-Prototype-Mode:
+              schema:
+                type: string
+                example: "true"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoadStatisticsResponse'
+
+components:
+  schemas:
+    LoadCalculationRequest:
+      type: object
+      required:
+        - target_tank
+        - flow_rate
+        - influent
+      properties:
+        target_tank:
+          type: string
+          enum: [influent, anaerobic, anoxic, aerobic]
+          description: 부하량 측정 대상 탱크 (유입수/혐기조/무산소조/호기조)
+          example: "influent"
+        flow_rate:
+          type: number
+          description: 유입유량 (m³/day)
+          example: 128000
+        influent:
+          type: object
+          description: 유입 수질 데이터
+          required:
+            - BOD
+            - TN
+            - TP
+            - SS
+          properties:
+            BOD:
+              type: number
+              description: BOD 농도 (mg/L)
+              example: 156.8
+            TN:
+              type: number
+              description: TN 농도 (mg/L)
+              example: 24.9
+            TP:
+              type: number
+              description: TP 농도 (mg/L)
+              example: 4.85
+            SS:
+              type: number
+              description: SS 농도 (mg/L)
+              example: 142.0
+        effluent:
+          type: object
+          description: 유출 수질 데이터 (제거율 계산용, 선택)
+          properties:
+            BOD:
+              type: number
+              description: BOD 농도 (mg/L)
+              example: 4.5
+            TN:
+              type: number
+              description: TN 농도 (mg/L)
+              example: 14.2
+            TP:
+              type: number
+              description: TP 농도 (mg/L)
+              example: 0.08
+            SS:
+              type: number
+              description: SS 농도 (mg/L)
+              example: 3.8
+
+    LoadCalculationResponse:
+      type: object
+      properties:
+        target_tank:
+          type: string
+          example: "influent"
+        flow_rate:
+          type: number
+          example: 128000
+        loads:
+          type: object
+          description: 부하량 (kg/day)
+          properties:
+            BOD_load_kg_d:
+              type: number
+              example: 20070.4
+            TN_load_kg_d:
+              type: number
+              example: 3187.2
+            TP_load_kg_d:
+              type: number
+              example: 620.8
+            SS_load_kg_d:
+              type: number
+              example: 18176.0
+        removal_rates:
+          type: object
+          description: 제거율 (%). effluent 데이터 제공 시에만 포함.
+          properties:
+            BOD_removal_pct:
+              type: number
+              example: 97.1
+            TN_removal_pct:
+              type: number
+              example: 43.0
+            TP_removal_pct:
+              type: number
+              example: 98.4
+            SS_removal_pct:
+              type: number
+              example: 97.3
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-01-27T14:30:00Z"
+
+    LoadStatisticsResponse:
+      type: object
+      properties:
+        period:
+          type: object
+          properties:
+            start:
+              type: string
+              format: date
+              example: "2026-01-01"
+            end:
+              type: string
+              format: date
+              example: "2026-01-31"
+            interval:
+              type: string
+              example: "daily"
+        target_tank:
+          type: string
+          description: 필터된 탱크 (null이면 전체)
+          example: "influent"
+        statistics:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                example: "2026-01-27"
+              BOD_load_avg:
+                type: number
+                example: 19500.5
+              TN_load_avg:
+                type: number
+                example: 3100.2
+              TP_load_avg:
+                type: number
+                example: 600.5
+              removal_rate_BOD_avg:
+                type: number
+                example: 96.8
+              removal_rate_TN_avg:
+                type: number
+                example: 72.5
+              removal_rate_TP_avg:
+                type: number
+                example: 83.0
+
+    ErrorResponse:
+      type: object
+      properties:
+        detail:
+          type: string

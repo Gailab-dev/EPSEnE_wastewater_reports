@@ -1,0 +1,382 @@
+openapi: 3.0.3
+info:
+  title: 공정 분석 API (003-process-analytics)
+  version: 1.0.0-prototype
+  description: |
+    하수처리 공정 운전 지표 분석 API. 규칙 기반 계산으로 AI 모델 불필요.
+    9개 공정 지표: 평균DO, MLSS, F/M비, C/N비, 질산화율, SNR, SDNR, 침전지 수면적부하, 침전시간
+
+servers:
+  - url: http://localhost:8000
+    description: 프로토타입 API 서버
+
+paths:
+  /api/v1/analytics/indicators/all:
+    post:
+      summary: 전체 공정 지표 산출
+      description: 운전 데이터를 입력하면 9개 공정 지표를 한번에 계산하여 반환. 각 지표에 정상 범위 초과 여부(alert) 포함.
+      tags:
+        - 003-process-analytics
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IndicatorRequest'
+      responses:
+        '200':
+          description: 전체 지표 산출 성공
+          headers:
+            X-Prototype-Mode:
+              schema:
+                type: string
+                example: "true"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllIndicatorsResponse'
+        '400':
+          description: 잘못된 요청
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/analytics/indicators/select:
+    post:
+      summary: 선택 공정 지표 산출
+      description: 지정된 지표만 계산하여 반환. indicators 배열로 원하는 지표를 선택.
+      tags:
+        - 003-process-analytics
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SelectIndicatorRequest'
+      responses:
+        '200':
+          description: 선택 지표 산출 성공
+          headers:
+            X-Prototype-Mode:
+              schema:
+                type: string
+                example: "true"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SelectIndicatorsResponse'
+        '400':
+          description: 잘못된 요청 또는 유효하지 않은 지표명
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    IndicatorRequest:
+      type: object
+      description: 공정 지표 계산에 필요한 입력값
+      required:
+        - flow_rate
+        - influent
+        - effluent
+        - aerobic
+        - sedimentation
+      properties:
+        flow_rate:
+          type: number
+          description: 유입유량 (m³/day)
+          example: 128000
+        influent:
+          type: object
+          description: 유입 수질
+          required:
+            - BOD
+            - TN
+            - NH4
+          properties:
+            BOD:
+              type: number
+              description: 유입 BOD (mg/L)
+              example: 156.8
+            TN:
+              type: number
+              description: 유입 TN (mg/L)
+              example: 24.9
+            NH4:
+              type: number
+              description: 유입 NH4-N (mg/L)
+              example: 18.5
+        effluent:
+          type: object
+          description: 유출 수질
+          required:
+            - BOD
+            - TN
+            - NH4
+            - NO3
+          properties:
+            BOD:
+              type: number
+              description: 유출 BOD (mg/L)
+              example: 4.5
+            TN:
+              type: number
+              description: 유출 TN (mg/L)
+              example: 14.2
+            NH4:
+              type: number
+              description: 유출 NH4-N (mg/L)
+              example: 1.2
+            NO3:
+              type: number
+              description: 유출 NO3-N (mg/L)
+              example: 10.5
+        aerobic:
+          type: object
+          description: 호기조 운전 데이터
+          required:
+            - DO
+            - MLSS
+            - volume
+          properties:
+            DO:
+              type: number
+              description: 용존산소 (mg/L)
+              example: 2.3
+            MLSS:
+              type: number
+              description: MLSS 농도 (mg/L)
+              example: 3200
+            volume:
+              type: number
+              description: 호기조 용량 (m³)
+              example: 25000
+        anoxic:
+          type: object
+          description: 무산소조 운전 데이터 (SDNR 계산용, 선택)
+          properties:
+            MLSS:
+              type: number
+              description: 무산소조 MLSS 농도 (mg/L)
+              example: 3000
+            volume:
+              type: number
+              description: 무산소조 용량 (m³)
+              example: 15000
+            influent_NO3:
+              type: number
+              description: 무산소조 유입 NO3-N (mg/L)
+              example: 12.0
+            effluent_NO3:
+              type: number
+              description: 무산소조 유출 NO3-N (mg/L)
+              example: 2.5
+        sedimentation:
+          type: object
+          description: 침전지 데이터
+          required:
+            - surface_area
+          properties:
+            surface_area:
+              type: number
+              description: 침전지 표면적 (m²)
+              example: 5200
+            depth:
+              type: number
+              description: 침전지 유효 수심 (m, 침전시간 계산용)
+              example: 3.5
+
+    SelectIndicatorRequest:
+      allOf:
+        - $ref: '#/components/schemas/IndicatorRequest'
+        - type: object
+          required:
+            - indicators
+          properties:
+            indicators:
+              type: array
+              description: 산출할 지표 목록
+              items:
+                type: string
+                enum:
+                  - avg_do
+                  - mlss
+                  - fm_ratio
+                  - cn_ratio
+                  - nitrification_rate
+                  - snr
+                  - sdnr
+                  - surface_overflow_rate
+                  - settling_time
+              example: ["fm_ratio", "cn_ratio", "nitrification_rate"]
+
+    IndicatorResult:
+      type: object
+      description: 개별 지표 결과
+      properties:
+        value:
+          type: number
+          description: 계산된 지표 값
+        unit:
+          type: string
+          description: 단위
+        normal_range:
+          type: object
+          properties:
+            min:
+              type: number
+            max:
+              type: number
+        alert:
+          type: boolean
+          description: 정상 범위 초과 여부
+        formula:
+          type: string
+          description: 계산 공식
+
+    AllIndicatorsResponse:
+      type: object
+      properties:
+        indicators:
+          type: object
+          properties:
+            avg_do:
+              allOf:
+                - $ref: '#/components/schemas/IndicatorResult'
+              example:
+                value: 2.3
+                unit: "mg/L"
+                normal_range: { min: 1.5, max: 3.0 }
+                alert: false
+                formula: "호기조 DO 평균"
+            mlss:
+              allOf:
+                - $ref: '#/components/schemas/IndicatorResult'
+              example:
+                value: 3200
+                unit: "mg/L"
+                normal_range: { min: 2000, max: 4000 }
+                alert: false
+                formula: "호기조 MLSS 농도"
+            fm_ratio:
+              allOf:
+                - $ref: '#/components/schemas/IndicatorResult'
+              example:
+                value: 0.25
+                unit: "kg BOD/kg MLSS·d"
+                normal_range: { min: 0.2, max: 0.4 }
+                alert: false
+                formula: "(Q × BOD_inf) / (V_aerobic × MLSS)"
+            cn_ratio:
+              allOf:
+                - $ref: '#/components/schemas/IndicatorResult'
+              example:
+                value: 6.3
+                unit: "-"
+                normal_range: { min: 4.0, max: 999 }
+                alert: false
+                formula: "BOD_inf / TN_inf"
+            nitrification_rate:
+              allOf:
+                - $ref: '#/components/schemas/IndicatorResult'
+              example:
+                value: 93.5
+                unit: "%"
+                normal_range: { min: 90, max: 100 }
+                alert: false
+                formula: "(NH4_inf - NH4_eff) / NH4_inf × 100"
+            snr:
+              allOf:
+                - $ref: '#/components/schemas/IndicatorResult'
+              example:
+                value: 0.054
+                unit: "kg NH4-N/kg MLSS·d"
+                normal_range: { min: 0.03, max: 0.08 }
+                alert: false
+                formula: "Q × (NH4_inf - NH4_eff) / (V_aerobic × MLSS)"
+            sdnr:
+              allOf:
+                - $ref: '#/components/schemas/IndicatorResult'
+              example:
+                value: 0.048
+                unit: "kg NO3-N/kg MLSS·d"
+                normal_range: { min: 0.03, max: 0.07 }
+                alert: false
+                formula: "Q × (NO3_in - NO3_out) / (V_anoxic × MLSS_anoxic)"
+            surface_overflow_rate:
+              allOf:
+                - $ref: '#/components/schemas/IndicatorResult'
+              example:
+                value: 24.6
+                unit: "m³/m²·d"
+                normal_range: { min: 0, max: 30 }
+                alert: false
+                formula: "Q / A_sedimentation"
+            settling_time:
+              allOf:
+                - $ref: '#/components/schemas/IndicatorResult'
+              example:
+                value: 2.8
+                unit: "h"
+                normal_range: { min: 1.5, max: 4.0 }
+                alert: false
+                formula: "(A × H) / (Q / 24)"
+        alert_count:
+          type: integer
+          description: 이상 범위 지표 개수
+          example: 0
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-01-27T14:30:00Z"
+
+    SelectIndicatorsResponse:
+      type: object
+      properties:
+        requested:
+          type: array
+          description: 요청한 지표 목록
+          items:
+            type: string
+          example: ["fm_ratio", "cn_ratio", "nitrification_rate"]
+        indicators:
+          type: object
+          description: 요청한 지표만 포함
+          additionalProperties:
+            $ref: '#/components/schemas/IndicatorResult'
+          example:
+            fm_ratio:
+              value: 0.25
+              unit: "kg BOD/kg MLSS·d"
+              normal_range: { min: 0.2, max: 0.4 }
+              alert: false
+              formula: "(Q × BOD_inf) / (V_aerobic × MLSS)"
+            cn_ratio:
+              value: 6.3
+              unit: "-"
+              normal_range: { min: 4.0, max: 999 }
+              alert: false
+              formula: "BOD_inf / TN_inf"
+            nitrification_rate:
+              value: 93.5
+              unit: "%"
+              normal_range: { min: 90, max: 100 }
+              alert: false
+              formula: "(NH4_inf - NH4_eff) / NH4_inf × 100"
+        alert_count:
+          type: integer
+          description: 이상 범위 지표 개수
+          example: 0
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-01-27T14:30:00Z"
+
+    ErrorResponse:
+      type: object
+      properties:
+        detail:
+          type: string
