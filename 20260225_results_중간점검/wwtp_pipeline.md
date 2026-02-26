@@ -13,11 +13,11 @@
 | 1 | 유입수 (Influent) | BOD/TN/TP 부하량 예측 | ✅ 구현 |
 | 2 | 일차침전지 (Primary Clarifier) | 침전 후 수질 (BOD, TOC, SS, TN, TP) | ✅ 구현 |
 | 3 | 혐기조 (Anaerobic) | 인 방출 (PO4-P, MLSS) | ✅ 구현 |
-| 4 | 무산소조 (Anoxic) | 탈질 (NH4, NO3, MLSS) | [미구현] |
-| 5 | 호기조 (Aerobic) | 질산화 및 인 흡수 (NH4, NO3, PO4-P, MLSS) | [미구현] |
-| 6 | 이차침전지 (Secondary Clarifier) | 슬러지 반송/인발 (Q_RAS, Q_WAS, HRT) | [미구현] |
-| 7 | 총인처리시설 (P Treatment) | 화학적 인 제거 (방류_TP, 약품주입률) | [미구현] |
-| 8 | 방류수 (Effluent) | 최종 방류수 수질 (BOD, TOC, SS, TN, TP) | [미구현] |
+| 4 | 무산소조 (Anoxic) | 탈질 (NH4, NO3, MLSS) | ✅ 구현 |
+| 5 | 호기조 (Aerobic) | 질산화 및 인 흡수 (NH4, NO3, PO4-P, MLSS) | ✅ 구현 |
+| 6 | 이차침전지 (Secondary Clarifier) | 슬러지 반송/인발 (Q_RAS, Q_WAS, HRT) | ✅ 구현 |
+| 7 | 총인처리시설 (P Treatment) | 화학적 인 제거 (방류_TP, 약품주입률) | ✅ 구현 |
+| 8 | 방류수 (Effluent) | 최종 방류수 수질 (BOD, TOC, SS, TN, TP) | ✅ 구현 |
 
 ---
 
